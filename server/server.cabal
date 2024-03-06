@@ -79,6 +79,8 @@ executable server
         , wai
         , wai-cors
         , warp
+        , mysql-simple
+
 
     -- Directories containing source files.
     hs-source-dirs:   app
