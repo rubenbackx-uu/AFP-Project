@@ -52,6 +52,7 @@ main =
        _ <- execute_ conn "CREATE TABLE IF NOT EXISTS users ( id BIGINT PRIMARY KEY NOT NULL AUTO_INCREMENT, name VARCHAR(255) NOT NULL )"
        _ <- execute_ conn "DELETE FROM users"
        _ <- execute_ conn "INSERT INTO users (name) VALUES ('User 1'), ('User 2')"
+       _ <- execute_ conn "CREATE TABLE IF NOT EXISTS artist ( art_id BIGINT PRIMARY KEY NOT NULL AUTO_INCREMENT, art_name VARCHAR (255) NOT NULL )"
        run 8300 (app conn)
 
 
