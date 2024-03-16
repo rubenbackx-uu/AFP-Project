@@ -10,27 +10,17 @@
 
 module Main where
 
-import Data.Aeson
-import GHC.Generics
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Middleware.Cors
 import Servant
 import Database.MySQL.Simple 
-import Database.MySQL.Simple.QueryResults
-import Database.MySQL.Simple.Result 
 import Control.Monad.IO.Class (MonadIO(liftIO))
+import User (User(..))
 
 type UserAPI = "users" :> Get '[JSON] [User]
 
-data User = User { id :: Int, name :: String } deriving (Eq, Show, Generic)
 
-instance ToJSON User
-instance QueryResults User where
-    convertResults [fa, fb] [va, vb] = User id name
-        where id = convert fa va
-              name = convert fb vb
-    convertResults fs vs = convertError fs vs 2 
 
 users :: Connection -> IO [User]
 users conn = query_ conn "SELECT * FROM users" --[User 1 "User 1", User 2 "User 2"]

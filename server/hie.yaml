@@ -1,0 +1,10 @@
+cradle:
+  cabal:
+  - path: "app/Main.hs"
+    component: "server:exe:server"
+
+  - path: "app/Authentication.hs"
+    component: "server:exe:server"
+
+  - path: "app/User.hs"
+    component: "server:exe:server"
