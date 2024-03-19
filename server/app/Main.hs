@@ -60,6 +60,7 @@ main = do
     _ <- execute_ conn "CREATE TABLE IF NOT EXISTS users ( id BIGINT PRIMARY KEY NOT NULL AUTO_INCREMENT, name VARCHAR(255) NOT NULL, password VARCHAR(255) NOT NULL)"
     _ <- execute_ conn "DELETE FROM users"
     _ <- execute_ conn "INSERT INTO users (name, password) VALUES ('user1', 'pw1'), ('user2', 'pw2')"
+    _ <- execute_ conn "CREATE TABLE IF NOT EXISTS artist ( art_id BIGINT PRIMARY KEY NOT NULL AUTO_INCREMENT, art_name VARCHAR (255) NOT NULL )"
     runSettings settings =<< app conn
 
 
