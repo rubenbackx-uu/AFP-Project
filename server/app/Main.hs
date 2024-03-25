@@ -61,6 +61,6 @@ main = do
     _ <- execute_ conn "DELETE FROM users"
     _ <- execute_ conn "INSERT INTO users (name, password) VALUES ('user1', 'pw1'), ('user2', 'pw2')"
     _ <- execute_ conn "CREATE TABLE IF NOT EXISTS artist ( art_id BIGINT PRIMARY KEY NOT NULL AUTO_INCREMENT, art_name VARCHAR (255) NOT NULL )"
+    _ <- execute_ conn "CREATE TABLE IF NOT EXISTS tabs ( tab_id BIGINT PRIMARY KEY NOT NULL AUTO_INCREMENT, title VARCHAR (255) NOT NULL, art_id BIGINT NOT NULL, type ENUM('Chords', 'Tabs') NOT NULL, tab_content TEXT NOT NULL, CONSTRAINT `fk_tab_art` FOREIGN KEY (art_id) REFERENCES artists (art_id) ON DELETE CASCADE ON UPDATE RESTRICT)"
+    _ <- execute_ conn "CREATE UNIQUE INDEX IF NOT EXISTS tabs_idx ON tabs (art_id, title, type)"
     runSettings settings =<< app conn
-
-
