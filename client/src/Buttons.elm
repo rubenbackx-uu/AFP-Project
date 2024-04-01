@@ -57,7 +57,7 @@ getUsers : Cmd Msg
 getUsers = Http.get { url = "http://localhost:8300/users", expect = Http.expectJson GotUsers usersDecoder }
 
 usersDecoder : Decoder (List User)
-usersDecoder = list (map2 User (field "id" int) (field "name" string))
+usersDecoder = list (map2 User (field "userId" int) (field "username" string))
 
 
 
