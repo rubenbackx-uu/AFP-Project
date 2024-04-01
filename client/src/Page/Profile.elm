@@ -1,4 +1,4 @@
-module Page.Home exposing (Model, Msg, view, update)
+module Page.Profile exposing (Model, Msg, view, update)
 
 import Browser
 import Page
@@ -27,7 +27,7 @@ view : Model -> Browser.Document Msg
 view _ = Page.view "Home" content
 
 content : Html Msg
-content = div [ ] 
-    [ h1 [ css [ color (rgb 255 255 255) ] ] [ text "This is some content" ]
+content = div [] 
+    [ h1 [ css [ color (rgb 255 255 255) ] ] [ text "This is the profile page" ]
     , p [ css [ color (rgb 255 255 255) ] ] [ text "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aliquam sit amet ipsum quam. Mauris commodo purus quis maximus viverra. Pellentesque nec velit vel tellus fringilla efficitur. Fusce dignissim metus et volutpat placerat. In mattis dolor id felis feugiat, a rutrum velit auctor. Duis pretium cursus lectus dapibus pulvinar. Aenean mollis ligula vitae neque gravida, eget molestie metus ullamcorper. Nunc ultrices molestie sem, in commodo diam egestas et. In fringilla odio nulla, sit amet lobortis magna eleifend nec. Sed laoreet tristique purus ut maximus. Cras at cursus mi, vitae consequat lorem. Mauris risus lectus, laoreet ut maximus vel, sollicitudin at tellus. Nunc quis magna id massa rutrum tincidunt. In feugiat ornare fermentum. Lorem ipsum dolor sit amet, consectetur adipiscing elit. " ]
     ]

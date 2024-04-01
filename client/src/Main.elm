@@ -3,12 +3,14 @@ module Main exposing (main)
 import Browser
 import Browser.Navigation as Nav
 import Debug exposing (..)
-import Html exposing (..)
-import Html.Attributes exposing (..)
+import Html
+import Html.Styled exposing (..)
+import Html.Styled.Attributes exposing (href)
 import Route exposing (Route)
 import Url
 
 import Page.Home as Home
+import Page.Profile as Profile
 
 -- MAIN
 
@@ -48,6 +50,7 @@ type Msg
     = LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
     | HomeMsg Home.Msg
+    | ProfileMsg Profile.Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -60,6 +63,7 @@ update msg model =
                     ( model, Nav.load href )
         UrlChanged url -> changeRoute (Route.fromUrl url) model.key
         HomeMsg m -> Home.update m () |> updateWith (\_ -> model) HomeMsg
+        ProfileMsg m -> Profile.update m () |> updateWith (\_ -> model) ProfileMsg
 
 updateWith : (model -> Model) -> (msg -> Msg) -> (model, Cmd msg) -> (Model, Cmd Msg)
 updateWith toModel toMsg (subModel, subCmd) = (toModel subModel, Cmd.map toMsg subCmd)
@@ -81,24 +85,15 @@ view model =
     case model.page of
         ErrorPage -> viewError
         OnPage Route.Home -> viewPage (Home.view ()) HomeMsg
-        OnPage Route.Profile -> viewProfile
+        OnPage Route.Profile -> viewPage (Profile.view ()) ProfileMsg
         OnPage (Route.Tab id) -> viewTab id
-
-viewProfile : Browser.Document Msg
-viewProfile =
-    { title = "Profile"
-    , body = 
-        [ h1 [] [ text "Profile" ]
-        , links 
-        ]
-    }
 
 viewTab : Int -> Browser.Document Msg
 viewTab id =
     { title = "Tab " ++ (String.fromInt id) 
     , body = 
-        [ h1 [] [ text ("Tab " ++ (String.fromInt id)) ] 
-        , links
+        [ toUnstyled (h1 [] [ text ("Tab " ++ (String.fromInt id)) ])
+        , toUnstyled links
         ]
     }
 
@@ -106,8 +101,8 @@ viewError : Browser.Document Msg
 viewError = 
     { title = "Error" 
     , body = 
-        [ h1 [] [ text "Error" ] 
-        , links
+        [ toUnstyled (h1 [] [ text "Error" ])
+        , toUnstyled links
         ]
     }
 
