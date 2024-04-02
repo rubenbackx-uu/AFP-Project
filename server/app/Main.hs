@@ -1,7 +1,5 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
@@ -11,13 +9,19 @@
 
 module Main where
 
+import Properties
+import Repository
+import Control.Monad
+import Data.Maybe
+import Entity.User
+import Entity.Artist
+import Entity.Tabs
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Middleware.Cors
 import Servant
 import Database.MySQL.Simple 
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import User (User(..))
 import GHC.Generics
 import Servant.Auth (Auth)
 import Servant.Auth.Server as SAS
@@ -26,23 +30,24 @@ import Servant.Auth as SA
 type UserAPI = "users" :> Get '[JSON] [User]
 type UserAPIServer = Auth '[SA.JWT, SA.BasicAuth] User :> UserAPI
 
-
 users :: Connection -> IO [User]
-users conn = query_ conn "SELECT * FROM users" --[User 1 "User 1", User 2 "User 2"]
+users conn = findAll conn usersTable
 
 server :: Connection -> Server UserAPIServer
 server conn (Authenticated user) = liftIO $ users conn
 server _ _ = throwError err401
 
-userAPI :: Proxy UserAPI
-userAPI = Proxy
-
 authCheck :: Connection -> BasicAuthData -> IO (AuthResult User)
 authCheck conn (BasicAuthData username password) = do
-  users <- query conn "SELECT * FROM users WHERE name = ? AND password = ?" (username, password)
+  users <- query conn "SELECT * FROM users WHERE username = ? AND password = ?" (username, password)
   case users of
     [user] -> return (Authenticated user)
     _ -> return SAS.BadPassword
+
+corsConfig :: Middleware
+corsConfig = cors $ const $ Just simpleCorsResourcePolicy {
+    corsRequestHeaders = "Authorization" : corsRequestHeaders simpleCorsResourcePolicy
+}
 
 app :: Connection -> IO Application
 app conn = do
@@ -51,16 +56,39 @@ app conn = do
         authCfg = authCheck conn
         cfg = jwtCfg :. defaultCookieSettings :. authCfg :. EmptyContext
         api = Proxy :: Proxy UserAPIServer
-    pure $ serveWithContext api cfg (server conn)
+    return $ corsConfig $ serveWithContext api cfg (server conn)
 
 main :: IO ()
-main = do
-    conn <- connect defaultConnectInfo { connectUser = "afp", connectPassword = "pass", connectDatabase = "afp" } 
-    let settings = setPort 8300 $ setBeforeMainLoop (putStrLn ("listening on port " ++ show 8300)) $ defaultSettings
-    _ <- execute_ conn "CREATE TABLE IF NOT EXISTS users ( id BIGINT PRIMARY KEY NOT NULL AUTO_INCREMENT, name VARCHAR(255) NOT NULL, password VARCHAR(255) NOT NULL)"
-    _ <- execute_ conn "DELETE FROM users"
-    _ <- execute_ conn "INSERT INTO users (name, password) VALUES ('user1', 'pw1'), ('user2', 'pw2')"
-    _ <- execute_ conn "CREATE TABLE IF NOT EXISTS artist ( art_id BIGINT PRIMARY KEY NOT NULL AUTO_INCREMENT, art_name VARCHAR (255) NOT NULL )"
-    _ <- execute_ conn "CREATE TABLE IF NOT EXISTS tabs ( tab_id BIGINT PRIMARY KEY NOT NULL AUTO_INCREMENT, title VARCHAR (255) NOT NULL, art_id BIGINT NOT NULL, type ENUM('Chords', 'Tabs') NOT NULL, tab_content TEXT NOT NULL, CONSTRAINT `fk_tab_art` FOREIGN KEY (art_id) REFERENCES artists (art_id) ON DELETE CASCADE ON UPDATE RESTRICT)"
-    _ <- execute_ conn "CREATE UNIQUE INDEX IF NOT EXISTS tabs_idx ON tabs (art_id, title, type)"
-    runSettings settings =<< app conn
+main = 
+    do properties <- readPropertiesFile "application.properties"
+       
+       conn <- connect defaultConnectInfo { connectUser = "afp", connectPassword = "pass", connectDatabase = "afp" }
+
+       let port = fromMaybe 8300 $ getIntegerProperty properties "port" 
+       let settings = setPort port $ setBeforeMainLoop (putStrLn ("listening on port " ++ show port)) defaultSettings
+       
+       let dropTables = getBooleanProperty properties "database.drop-tables"
+       
+       when dropTables $ dropTable conn usersTable
+       when dropTables $ dropTable conn tabsTable
+       when dropTables $ dropTable conn artistsTable
+       
+       let createTables = getBooleanProperty properties "database.create-tables"
+       when createTables $ createTable conn usersTable
+       when createTables $ createTable conn artistsTable
+       when createTables $ createTable conn tabsTable
+       
+       let clearTables = getBooleanProperty properties "database.clear-tables"
+       when clearTables $ deleteAll conn usersTable
+       when clearTables $ deleteAll conn tabsTable
+       when clearTables $ deleteAll conn artistsTable
+
+       let profile = fromMaybe "default" $ getProperty properties "profile"
+       when (profile == "dev") $ initDevData conn
+       
+       runSettings settings =<< app conn
+
+initDevData :: Connection -> IO ()
+initDevData conn =
+    do _ <- saveAll conn usersTable [User 0 "user1" "user1", User 0 "user2" "user2"]
+       return ()
