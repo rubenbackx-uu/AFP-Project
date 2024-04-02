@@ -186,3 +186,38 @@ parseText = many (satisfy (\c -> c /= '\n' && c /= '\r'))
 run :: Parser a b -> [a] -> Maybe b
 run p xs | null (parse p xs) = Nothing
          | otherwise = Just (fst (head (parse p xs)))
+
+
+increment :: Key -> Key
+increment A = ASharp
+increment ASharp = B
+increment B = C
+increment C = CSharp
+increment CSharp = D
+increment D = DSharp
+increment DSharp = E
+increment E = F
+increment F = FSharp
+increment FSharp = G
+increment G = GSharp
+increment GSharp = A
+increment InvalidKey = InvalidKey
+
+raiseKey :: Int -> Key -> Key
+raiseKey 0 k = k
+raiseKey n k | n < 0 || n > 11 = raiseKey (n `mod` 12) k
+             | otherwise       = raiseKey (n - 1) (increment k)
+
+raiseChord :: Int -> IndexedChord -> IndexedChord
+raiseChord n (IndexedChord i (SimpleChord k m))     = IndexedChord i (SimpleChord (raiseKey n k) m)
+raiseChord n (IndexedChord i (ChordWithBass k m b)) = IndexedChord i (ChordWithBass (raiseKey n k) m (raiseKey n b))
+
+transposeLine :: Int -> ChordTabLine -> ChordTabLine
+transposeLine _ (PlainTextLine t) = PlainTextLine t
+transposeLine n (ChordLine cs)    = ChordLine (map (raiseChord n) cs)
+
+transposeContent :: Int -> TabContent -> TabContent
+transposeContent n (ChordTab ls) = ChordTab (map (transposeLine n) ls)
+
+transpose :: Int -> Tab -> Tab
+transpose n t@(Tab {content = c}) = t {content = transposeContent n c}
