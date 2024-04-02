@@ -77,9 +77,10 @@ data IndexedChord = IndexedChord Int Chord deriving Show
 instance ToJSON IndexedChord where 
     toJSON (IndexedChord pos chord) = object [ "position" .= pos, "chord" .= chord ]
 
-data Chord = Chord Entity.Tabs.Key Mode  -- for instance, in a F#m7 chord F# is the Key, and m7 the Mode
+data Chord = SimpleChord Entity.Tabs.Key Mode | ChordWithBass Entity.Tabs.Key Mode Entity.Tabs.Key  -- for instance, in a F#m7 chord F# is the Key, and m7 the Mode
 instance Show Chord where
-    show (Chord key mode) = show key ++ mode
+    show (SimpleChord k m)     = show k ++ m
+    show (ChordWithBass k m b) = show k ++ m ++ "/" ++ show b
 instance ToJSON Chord where 
     toJSON chord = toJSON (show chord)
 type Mode = String
@@ -101,83 +102,87 @@ instance Show Entity.Tabs.Key where
 instance ToJSON Entity.Tabs.Key where
     toJSON key = toJSON (show key)
 
--- Parsing
--- makeTab :: Int -> String -> String -> String -> Maybe Tab
--- makeTab i t a c = case run parseChordTab c of
---         Nothing      -> Nothing
---         Just con -> Just (Tab i t a con)
+--Parsing
+makeTab :: Int -> String -> String -> Artist -> Maybe Tab
+makeTab i t a c = case run parseChordTab c of
+        Nothing      -> Nothing
+        Just con -> Just (Tab i t a con)
 
--- parseChordTab :: Parser Char TabContent
--- parseChordTab = ChordTab <$> many parseChordTabLine
+parseChordTab :: Parser Char TabContent
+parseChordTab = ChordTab <$> many parseChordTabLine
 
--- parseChordTabLine :: Parser Char ChordTabLine
--- parseChordTabLine = parseChordLine <|> parsePlainTextLine
+parseChordTabLine :: Parser Char ChordTabLine
+parseChordTabLine = parseChordLine <|> parsePlainTextLine
 
--- parseChordLine :: Parser Char ChordTabLine
--- parseChordLine = ChordLine <$> ((\i cs _ -> makeIndexedChords i cs) <$> parseWhiteSpaces <*> many parseChordAndSpace <*> parseCrlf)
+parseChordLine :: Parser Char ChordTabLine
+parseChordLine = ChordLine <$> ((\i cs _ -> makeIndexedChords i cs) <$> parseWhiteSpaces <*> many parseChordAndSpace <*> parseCrlf)
 
--- makeIndexedChords :: Int -> [(Chord, Int)] -> [IndexedChord]
--- makeIndexedChords _ [] = []
--- makeIndexedChords i ((c, s):xs) = IndexedChord i c : makeIndexedChords (i + chordLength c + s) xs
+makeIndexedChords :: Int -> [(Chord, Int)] -> [IndexedChord]
+makeIndexedChords _ [] = []
+makeIndexedChords i ((c, s):xs) = IndexedChord i c : makeIndexedChords (i + chordLength c + s) xs
 
--- chordLength :: Chord -> Int
--- chordLength (Chord k m) = keyLength k + length m
+chordLength :: Chord -> Int
+chordLength (SimpleChord k m) = keyLength k + length m
+chordLength (ChordWithBass k m b) = keyLength k + length m + keyLength b
 
--- keyLength :: Key -> Int
--- keyLength c = if c `elem` [A, B, C, D, E, F, G] then 1 else 2
+keyLength :: Key -> Int
+keyLength c = if c `elem` [A, B, C, D, E, F, G] then 1 else 2
 
--- parseChordAndSpace :: Parser Char (Chord, Int)
--- parseChordAndSpace = (,) <$> parseChord <*> parseWhiteSpaces
+parseChordAndSpace :: Parser Char (Chord, Int)
+parseChordAndSpace = (,) <$> parseChord <*> parseWhiteSpaces
 
--- parsePlainTextLine :: Parser Char ChordTabLine
--- parsePlainTextLine = (\t _ -> PlainTextLine t) <$> parseText <*> parseCrlf
+parsePlainTextLine :: Parser Char ChordTabLine
+parsePlainTextLine = (\t _ -> PlainTextLine t) <$> parseText <*> parseCrlf
 
--- parseChord :: Parser Char Chord
--- parseChord = Chord <$> parseKey <*> parseSignature
+parseChord :: Parser Char Chord
+parseChord = mkChord <$> parseKey <*> parseSignature <*> (((\_ k -> k) <$> token "/" <*> parseKey) <|> succeed InvalidKey)
 
--- parseSignature :: Parser Char String
--- parseSignature = concat <$> many (token "maj" <|> token "min" <|> token "m" <|> token "sus" <|> token "dim" <|> token "/" <|> token "add"
---         <|> token "2" <|> token "4" <|> token "5" <|> token "6" <|> token "7" <|> token "9" <|> token "11" <|> token "13" <|>
---          token "A" <|> token "B" <|> token "C" <|> token "D" <|> token "E" <|> token "F" <|> token "G")
+mkChord :: Key -> String -> Key -> Chord
+mkChord k s InvalidKey = SimpleChord k s
+mkChord k s b          = ChordWithBass k s b
 
--- char :: Char -> Parser Char Char
--- char c = satisfy (==c)
+parseSignature :: Parser Char String
+parseSignature = concat <$> many (token "maj" <|> token "min" <|> token "m" <|> token "sus" <|> token "dim" <|> token "add"
+        <|> token "2" <|> token "4" <|> token "5" <|> token "6" <|> token "7" <|> token "9" <|> token "11" <|> token "13")
 
--- parseKey :: Parser Char Key
--- parseKey = mkKey <$> satisfy isKey <*> (char '#' <|> char 'b' <|> succeed ' ')
+char :: Char -> Parser Char Char
+char c = satisfy (==c)
 
--- isKey :: Char -> Bool
--- isKey c = c >= 'A' && c <= 'G'
+parseKey :: Parser Char Key
+parseKey = mkKey <$> satisfy isKey <*> (char '#' <|> char 'b' <|> succeed ' ')
 
--- mkKey:: Char -> Char -> Key
--- mkKey 'A' '#' = ASharp
--- mkKey 'C' '#' = CSharp
--- mkKey 'D' '#' = DSharp
--- mkKey 'F' '#' = FSharp
--- mkKey 'G' '#' = GSharp
--- mkKey 'B' 'b' = ASharp
--- mkKey 'D' 'b' = CSharp
--- mkKey 'E' 'b' = DSharp
--- mkKey 'G' 'b' = FSharp
--- mkKey 'A' 'b' = GSharp
--- mkKey 'A' ' ' = A
--- mkKey 'B' ' ' = B
--- mkKey 'C' ' ' = C
--- mkKey 'D' ' ' = D
--- mkKey 'E' ' ' = E
--- mkKey 'F' ' ' = F
--- mkKey 'G' ' ' = G
--- mkKey _ _ = InvalidKey
+isKey :: Char -> Bool
+isKey c = c >= 'A' && c <= 'G'
 
--- parseWhiteSpaces :: Parser Char Int
--- parseWhiteSpaces = (length <$> many (char ' ')) <|> succeed 0
+mkKey:: Char -> Char -> Key
+mkKey 'A' '#' = ASharp
+mkKey 'C' '#' = CSharp
+mkKey 'D' '#' = DSharp
+mkKey 'F' '#' = FSharp
+mkKey 'G' '#' = GSharp
+mkKey 'B' 'b' = ASharp
+mkKey 'D' 'b' = CSharp
+mkKey 'E' 'b' = DSharp
+mkKey 'G' 'b' = FSharp
+mkKey 'A' 'b' = GSharp
+mkKey 'A' ' ' = A
+mkKey 'B' ' ' = B
+mkKey 'C' ' ' = C
+mkKey 'D' ' ' = D
+mkKey 'E' ' ' = E
+mkKey 'F' ' ' = F
+mkKey 'G' ' ' = G
+mkKey _ _ = InvalidKey
 
--- parseCrlf :: Parser Char [Char]
--- parseCrlf = token "\n" <|> token "\r\n"
+parseWhiteSpaces :: Parser Char Int
+parseWhiteSpaces = (length <$> many (char ' ')) <|> succeed 0
 
--- parseText :: Parser Char [Char]
--- parseText = many (satisfy (\c -> c /= '\n' && c /= '\r'))
+parseCrlf :: Parser Char [Char]
+parseCrlf = token "\n" <|> token "\r\n"
 
--- run :: Parser a b -> [a] -> Maybe b
--- run p xs | null (parse p xs) = Nothing
---          | otherwise = Just (fst (head (parse p xs)))
+parseText :: Parser Char [Char]
+parseText = many (satisfy (\c -> c /= '\n' && c /= '\r'))
+
+run :: Parser a b -> [a] -> Maybe b
+run p xs | null (parse p xs) = Nothing
+         | otherwise = Just (fst (head (parse p xs)))
