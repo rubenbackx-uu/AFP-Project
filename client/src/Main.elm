@@ -7,8 +7,11 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Route exposing (Route)
 import Url
-
+import Http
 import Page.Home as Home
+import User.User exposing (User)
+import Base64
+import User.User as User
 
 -- MAIN
 
@@ -30,16 +33,17 @@ type Page = OnPage Route | ErrorPage
 type alias Model =
     { key : Nav.Key
     , page : Page
+    , user: User.Model
     }
 
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
-init _ url key = changeRoute (Route.fromUrl url) key
+init _ url key = changeRoute (Route.fromUrl url) key (Cmd.map UserMsg User.getUser)
 
-changeRoute : Maybe Route -> Nav.Key -> ( Model, Cmd Msg )
-changeRoute mbRoute key =
+changeRoute : Maybe Route -> Nav.Key -> Cmd Msg -> ( Model, Cmd Msg )
+changeRoute mbRoute key cmd =
     case mbRoute of
-        Nothing -> ( { key = key, page = ErrorPage }, Cmd.none )
-        Just route -> ( { key = key, page = OnPage route }, Cmd.none )
+        Nothing -> ( { key = key, page = ErrorPage, user = Nothing }, cmd )
+        Just route -> ( { key = key, page = OnPage route, user = Nothing }, cmd )
 
 
 -- UPDATE
@@ -48,6 +52,7 @@ type Msg
     = LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
     | HomeMsg Home.Msg
+    | UserMsg User.Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -58,8 +63,10 @@ update msg model =
                     ( model, Nav.pushUrl model.key (Url.toString url) )
                 Browser.External href ->
                     ( model, Nav.load href )
-        UrlChanged url -> changeRoute (Route.fromUrl url) model.key
+        UrlChanged url -> changeRoute (Route.fromUrl url) model.key Cmd.none
         HomeMsg m -> Home.update m () |> updateWith (\_ -> model) HomeMsg
+        UserMsg m -> case User.update m model.user of
+            (newUser, cmd) -> ({ model | user = newUser }, Cmd.map UserMsg cmd)
 
 updateWith : (model -> Model) -> (msg -> Msg) -> (model, Cmd msg) -> (Model, Cmd Msg)
 updateWith toModel toMsg (subModel, subCmd) = (toModel subModel, Cmd.map toMsg subCmd)
@@ -81,14 +88,15 @@ view model =
     case model.page of
         ErrorPage -> viewError
         OnPage Route.Home -> viewPage (Home.view ()) HomeMsg
-        OnPage Route.Profile -> viewProfile
+        OnPage Route.Profile -> viewProfile model
         OnPage (Route.Tab id) -> viewTab id
 
-viewProfile : Browser.Document Msg
-viewProfile =
+viewProfile : Model -> Browser.Document Msg
+viewProfile model =
     { title = "Profile"
     , body = 
         [ h1 [] [ text "Profile" ]
+        , p [] [text (toString model.user)]
         , links 
         ]
     }
@@ -119,3 +127,11 @@ links = ul []
     , li [] [ a [ href "/tab/2" ] [ text "Tab 2" ] ]
     , li [] [ a [ href "/error" ] [ text "Error" ] ]
     ]
+
+basicAuthHeader : String -> String -> Http.Header
+basicAuthHeader username password =
+    let
+        credentials = username ++ ":" ++ password
+        encodedCredentials = Base64.encode credentials
+    in
+    Http.header "Authorization" ("Basic " ++ encodedCredentials)
