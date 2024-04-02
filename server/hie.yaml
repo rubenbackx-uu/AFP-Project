@@ -3,5 +3,20 @@ cradle:
   - path: "app/Main.hs"
     component: "server:exe:server"
 
-  - path: "app/User.hs"
+  - path: "app/Repository.hs"
+    component: "server:exe:server"
+
+  - path: "app/Table.hs"
+    component: "server:exe:server"
+
+  - path: "app/Properties.hs"
+    component: "server:exe:server"
+
+  - path: "app/Entity/User.hs"
+    component: "server:exe:server"
+
+  - path: "app/Entity/Artist.hs"
+    component: "server:exe:server"
+
+  - path: "app/Entity/Tabs.hs"
     component: "server:exe:server"

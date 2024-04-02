@@ -6,6 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Main where
 
@@ -20,22 +21,34 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Middleware.Cors
 import Servant
-import Database.MySQL.Simple 
+import Database.MySQL.Simple
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import GHC.Generics
 import Servant.Auth (Auth)
 import Servant.Auth.Server as SAS
 import Servant.Auth as SA
+import Control.Exception.Base (throwIO)
 
-type UserAPI = "users" :> Get '[JSON] [User]
+type UserAPI = "api" :> "users" :> Get '[JSON] [User] :<|> "api" :> "user" :> Capture "username" String :> Get '[JSON] User
 type UserAPIServer = Auth '[SA.JWT, SA.BasicAuth] User :> UserAPI
 
 users :: Connection -> IO [User]
 users conn = findAll conn usersTable
 
+singleUser :: Connection -> String -> IO User
+singleUser conn username = do
+  users <- query conn "SELECT * FROM users WHERE username = ?" (Only username)
+  case users of
+    [user] -> return user
+    _ -> throwIO $ userError "User not found"
+-- TODO: Error handling
+
 server :: Connection -> Server UserAPIServer
-server conn (Authenticated user) = liftIO $ users conn
-server _ _ = throwError err401
+server conn (Authenticated user) = handleUsers :<|> handleUser
+    where
+        handleUsers = liftIO $ users conn
+        handleUser requestedUsername = if requestedUsername == username user then liftIO (singleUser conn requestedUsername) else throwError err401
+server _ _ = throwAll err401
 
 authCheck :: Connection -> BasicAuthData -> IO (AuthResult User)
 authCheck conn (BasicAuthData username password) = do
@@ -59,25 +72,25 @@ app conn = do
     return $ corsConfig $ serveWithContext api cfg (server conn)
 
 main :: IO ()
-main = 
+main =
     do properties <- readPropertiesFile "application.properties"
-       
+
        conn <- connect defaultConnectInfo { connectUser = "afp", connectPassword = "pass", connectDatabase = "afp" }
 
-       let port = fromMaybe 8300 $ getIntegerProperty properties "port" 
+       let port = fromMaybe 8300 $ getIntegerProperty properties "port"
        let settings = setPort port $ setBeforeMainLoop (putStrLn ("listening on port " ++ show port)) defaultSettings
-       
+
        let dropTables = getBooleanProperty properties "database.drop-tables"
-       
+
        when dropTables $ dropTable conn usersTable
        when dropTables $ dropTable conn tabsTable
        when dropTables $ dropTable conn artistsTable
-       
+
        let createTables = getBooleanProperty properties "database.create-tables"
        when createTables $ createTable conn usersTable
        when createTables $ createTable conn artistsTable
        when createTables $ createTable conn tabsTable
-       
+
        let clearTables = getBooleanProperty properties "database.clear-tables"
        when clearTables $ deleteAll conn usersTable
        when clearTables $ deleteAll conn tabsTable
@@ -85,7 +98,7 @@ main =
 
        let profile = fromMaybe "default" $ getProperty properties "profile"
        when (profile == "dev") $ initDevData conn
-       
+
        runSettings settings =<< app conn
 
 initDevData :: Connection -> IO ()

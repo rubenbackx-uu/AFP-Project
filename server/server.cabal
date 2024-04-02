@@ -93,6 +93,7 @@ executable server
         , bytestring
         , mysql
         , parsec
+        , mtl
 
 
     -- Directories containing source files.
