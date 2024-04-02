@@ -1,6 +1,8 @@
-module Tab where
+module Tab (Tab(..), makeTab) where
 
-data Tab = Tab { id :: Int, title :: String, artist :: String, content :: TabContent} deriving Show
+import Artist (Artist(..))
+
+data Tab = Tab { id :: Int, title :: String, artist :: Artist, content :: TabContent} deriving Show
 
 newtype TabContent = ChordTab [ChordTabLine] deriving Show -- | TODO: Add Tab implementation here
 
@@ -14,7 +16,7 @@ type Mode = String
 data Key = A | ASharp | B | C | CSharp | D | DSharp | E | F | FSharp | G | GSharp | InvalidKey deriving (Eq, Show)
 
 -- Parsing
-makeTab :: Int -> String -> String -> String -> Maybe Tab
+makeTab :: Int -> String -> String -> Artist -> Maybe Tab
 makeTab i t a c = case run parseChordTab c of
         Nothing      -> Nothing
         Just con -> Just (Tab i t a con)
