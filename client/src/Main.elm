@@ -11,6 +11,9 @@ import Url
 
 import Page.Home as Home
 import Page.Profile as Profile
+import Page.Error as Error
+import Page.Tab as Tab
+import Page.Login as Login
 
 -- MAIN
 
@@ -51,6 +54,9 @@ type Msg
     | UrlChanged Url.Url
     | HomeMsg Home.Msg
     | ProfileMsg Profile.Msg
+    | ErrorMsg Error.Msg
+    | TabMsg Tab.Msg
+    | LoginMsg Login.Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -63,10 +69,23 @@ update msg model =
                     ( model, Nav.load href )
         UrlChanged url -> changeRoute (Route.fromUrl url) model.key
         HomeMsg m -> Home.update m () |> updateWith (\_ -> model) HomeMsg
+        LoginMsg m -> Login.update m () |> updateWith (\_ -> model) LoginMsg
         ProfileMsg m -> Profile.update m () |> updateWith (\_ -> model) ProfileMsg
+        ErrorMsg m -> Error.update m () |> updateWith (\_ -> model) ErrorMsg
+        TabMsg m -> Tab.update m (tempTab 0) |> updateWith (\_ -> model) TabMsg
+
+tempTab : Int -> Tab.Model
+tempTab id = { tab = { id = id, title = "Tab " ++ (String.fromInt id), artist = { id = 1, name = "Artist 1" }, lines = 
+    [ { text = "This is some line", chords = [ { position = 3, symbol = "C" }, { position = 6, symbol = "G" } ] }
+    , { text = "This is another line", chords = [ { position = 8, symbol = "A#sus4add9" } ] }
+    , { text = "", chords = [] }
+    , { text = "There are more lines", chords = [ { position = 0, symbol = "C7dim" }, { position = 10, symbol = "D6add9" } ] }
+    , { text = "This will be the final line", chords = [ { position = 2, symbol = "A" } ] }
+    ] } }
 
 updateWith : (model -> Model) -> (msg -> Msg) -> (model, Cmd msg) -> (Model, Cmd Msg)
 updateWith toModel toMsg (subModel, subCmd) = (toModel subModel, Cmd.map toMsg subCmd)
+
 
 -- SUBSCRIPTIONS
 
@@ -83,34 +102,8 @@ view model =
         viewPage page toMsg = let { title, body } = page in { title = title, body = List.map (Html.map toMsg) body } 
     in
     case model.page of
-        ErrorPage -> viewError
+        ErrorPage -> viewPage (Error.view ()) ErrorMsg
         OnPage Route.Home -> viewPage (Home.view ()) HomeMsg
+        OnPage Route.Login -> viewPage (Login.view ()) LoginMsg
         OnPage Route.Profile -> viewPage (Profile.view ()) ProfileMsg
-        OnPage (Route.Tab id) -> viewTab id
-
-viewTab : Int -> Browser.Document Msg
-viewTab id =
-    { title = "Tab " ++ (String.fromInt id) 
-    , body = 
-        [ toUnstyled (h1 [] [ text ("Tab " ++ (String.fromInt id)) ])
-        , toUnstyled links
-        ]
-    }
-
-viewError : Browser.Document Msg
-viewError = 
-    { title = "Error" 
-    , body = 
-        [ toUnstyled (h1 [] [ text "Error" ])
-        , toUnstyled links
-        ]
-    }
-
-links : Html Msg
-links = ul []
-    [ li [] [ a [ href "/" ] [ text "Home" ] ]
-    , li [] [ a [ href "/profile" ] [ text "Profile" ] ]
-    , li [] [ a [ href "/tab/1" ] [ text "Tab 1" ] ]
-    , li [] [ a [ href "/tab/2" ] [ text "Tab 2" ] ]
-    , li [] [ a [ href "/error" ] [ text "Error" ] ]
-    ]
+        OnPage (Route.Tab id) -> viewPage (Tab.view (tempTab id)) TabMsg

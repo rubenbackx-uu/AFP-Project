@@ -6,6 +6,7 @@ import Html.Styled exposing (..)
 import Html.Styled.Attributes exposing (css)
 import Components.Header exposing (..)
 import Components.Settings exposing(..)
+import Components.Colour exposing(scheme)
 
 view : String -> Html msg -> Browser.Document msg
 view title content =
@@ -20,6 +21,6 @@ page content = div [ css [ fontFamilies [ "sans-serif" ], displayFlex, flexDirec
     ]
 
 pageBody : Html msg -> Html msg
-pageBody content = div [ css [ padding2 (rem 1) (rem 2), flexGrow (num 1), backgroundColor (rgb 40 40 40) ] ]
+pageBody content = div [ css [ padding2 (rem 1) (rem 2), flexGrow (num 1), backgroundColor scheme.backgroundColour, color scheme.textColour ] ]
     [ div [ css [ maxWidth contentWidth, property "margin-inline" "auto" ] ] [content]
     ]
