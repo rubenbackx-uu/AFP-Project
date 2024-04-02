@@ -15,6 +15,7 @@ import Database.MySQL.Simple
 import Database.MySQL.Simple.QueryResults
 import Database.MySQL.Simple.Param 
 import Database.MySQL.Simple.Result 
+import ParseLib.Abstract
 
 data TabType = Chords | Tab
     deriving (Show, Eq, Generic)
