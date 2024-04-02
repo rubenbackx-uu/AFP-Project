@@ -7,16 +7,17 @@ import Html.Styled.Attributes exposing (css)
 import Components.Header exposing (..)
 import Components.Settings exposing(..)
 import Components.Colour exposing(scheme)
+import Session exposing (..)
 
-view : String -> Html msg -> Browser.Document msg
-view title content =
+view : String -> Session -> Html msg -> Browser.Document msg
+view title session content =
     { title = title
-    , body = [ toUnstyled (page content) ]
+    , body = [ toUnstyled (page session content) ]
     }
 
-page : Html msg -> Html msg
-page content = div [ css [ fontFamilies [ "sans-serif" ], displayFlex, flexDirection column, minHeight (vh 100), lineHeight (num 1.5) ] ]
-    [ pageHeader
+page : Session -> Html msg -> Html msg
+page session content = div [ css [ fontFamilies [ "sans-serif" ], displayFlex, flexDirection column, minHeight (vh 100), lineHeight (num 1.5) ] ]
+    [ pageHeader session
     , pageBody content 
     ]
 

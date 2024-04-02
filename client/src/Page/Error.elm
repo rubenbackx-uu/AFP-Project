@@ -8,10 +8,11 @@ import Html.Styled.Attributes exposing (..)
 import Components.Header exposing (..)
 import Components.Settings exposing (..)
 import Components.Colour exposing (scheme)
+import Session exposing (..)
 
 -- MODEL
 
-type alias Model = ()
+type alias Model = { session : Session }
 
 
 -- UPDATE
@@ -25,7 +26,7 @@ update _ model = (model, Cmd.none)
 -- VIEW
 
 view : Model -> Browser.Document Msg
-view _ = Page.view "Error" content
+view model = Page.view "Error" model.session content
 
 content : Html Msg
 content = div [ ] 

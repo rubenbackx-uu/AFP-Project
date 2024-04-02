@@ -1,4 +1,4 @@
-module Page.Home exposing (Model, Msg, view, update)
+module Page.Home exposing (Model, Msg, view, update, init)
 
 import Browser
 import Page
@@ -10,31 +10,54 @@ import Components.Settings exposing (..)
 import Components.Colour exposing (scheme)
 import Components.Link as Link exposing (..)
 import Components.Button exposing (..)
+import Session exposing (..)
+import Json.Decode exposing (map2, map4, Decoder, field, string, int, list)
+import Http
 
 -- MODEL
 
-type alias Model = ()
+type alias Artist =
+    { id : Int
+    , name : String
+    }
 
+type alias Tab =
+    { id : Int
+    , title : String
+    , artist : Artist
+    , rating : Int
+    }
+
+type alias Model = { session : Session, tabs : List Tab }
+
+
+-- INIT
+
+init : Session -> (Model, Cmd Msg)
+init session = ( { session = session, tabs = [] }, fetchTabs session)
 
 -- UPDATE
 
-type alias Msg = ()
+type Msg = Fetched (Result Http.Error (List Tab))
 
 update : Msg -> Model -> (Model, Cmd Msg) 
-update _ model = (model, Cmd.none)
+update msg model = case msg of 
+    Fetched res -> case res of
+        Ok tabs -> ( { model | tabs = tabs }, Cmd.none)
+        Err _ -> (model, Cmd.none)
 
 
 -- VIEW
 
 view : Model -> Browser.Document Msg
-view _ = Page.view "Home" content
+view model = Page.view "Home" model.session (content model.tabs)
 
-content : Html Msg
-content = div [ ] 
+content : List Tab -> Html Msg
+content tabs = div [ ] 
     [ h1 [ css [ color scheme.textColour ] ] [ text "Home" ]
-    , yourTabs
-    , popularTabs
+    , popularTabs tabs
     ]
+
 
 tableCell : Style
 tableCell = Css.batch 
@@ -54,32 +77,17 @@ yourTabs = div [ css [ displayFlex, flexDirection column, marginBottom (rem 1) ]
         ]
     ]
 
-popularTabs : Html Msg
-popularTabs = div [ css [ displayFlex, flexDirection column ] ] 
+popularTabs : List Tab -> Html Msg
+popularTabs tabs = div [ css [ displayFlex, flexDirection column ] ] 
     [ h2 [ css [ marginBottom (rem 0.5), fontWeight normal ] ] [ text "Popular tabs" ]
-    , tabsTable
-        [ { id = 3, title = "Tab 3", artist = { id = 3, name = "Arist 3" }, rating = 5 }
-        , { id = 4, title = "Tab 4", artist = { id = 4, name = "Arist 4" }, rating = 4 }
-        ]
+    , tabsTable tabs
     ]
-
-type alias Artist =
-    { id : Int
-    , name : String
-    }
-
-type alias Tab =
-    { id : Int
-    , title : String
-    , artist : Artist
-    , rating : Int
-    }
 
 tabsTable : List Tab -> Html Msg
 tabsTable tabs = Html.table [  css [ borderCollapse collapse ] ]
         (tr [] 
             [ th [ css [ textAlign start, tableCell ] ] [ text "Title" ]
-            , th [ css [ textAlign start, tableCell ] ] [ text "Arist" ]
+            , th [ css [ textAlign start, tableCell ] ] [ text "Artist" ]
             , th [ css [ textAlign start, tableCell ] ] [ text "Rating" ]
             ]
         :: List.map tabRow tabs)
@@ -92,3 +100,20 @@ tabRow tab = tr []
         (List.repeat tab.rating (span [ css [color scheme.primaryColour ] ] [ text "★" ]) ++
             List.repeat (5 - tab.rating) (span [ css [color scheme.textColour] ] [ text "☆" ]))
     ]
+
+fetchTabs : Session -> Cmd Msg
+fetchTabs session = Http.request 
+    { method = "GET"
+    , url = "http://localhost:8300/tabs"
+    , headers = []
+    , expect = Http.expectJson Fetched (list tabDecoder)
+    , body = Http.emptyBody
+    , timeout = Nothing
+    , tracker = Nothing
+    }
+
+tabDecoder : Decoder Tab
+tabDecoder = map4 Tab (field "id" Json.Decode.int) (field "title" string) (field "artist" artistDecoder) (field "rating" Json.Decode.int)
+
+artistDecoder : Decoder Artist
+artistDecoder = map2 Artist (field "id" Json.Decode.int) (field "name" string)
