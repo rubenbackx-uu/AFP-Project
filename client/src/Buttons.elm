@@ -3,7 +3,7 @@ module Buttons exposing (main)
 import Browser
 import Html exposing (Html, button, div, span, text)
 import Html.Events exposing (onClick)
-import Http
+import Http exposing (header)
 import Json.Decode exposing (Decoder, map2, field, int, string, list)
 import List exposing (map)
 
@@ -54,10 +54,18 @@ viewUser user =
 
 -- HTTP
 getUsers : Cmd Msg
-getUsers = Http.get { url = "http://localhost:8300/users", expect = Http.expectJson GotUsers usersDecoder }
+getUsers = Http.request 
+    { method = "GET"
+    , url = "http://localhost:8300/users"
+    , headers = [ header "Authorization" "Basic dXNlcjE6dXNlcjE=" ]
+    , expect = Http.expectJson GotUsers usersDecoder 
+    , body = Http.emptyBody
+    , timeout = Nothing
+    , tracker = Nothing
+    }
 
 usersDecoder : Decoder (List User)
-usersDecoder = list (map2 User (field "id" int) (field "name" string))
+usersDecoder = list (map2 User (field "userId" int) (field "username" string))
 
 
 

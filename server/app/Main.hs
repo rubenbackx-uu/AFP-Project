@@ -31,7 +31,7 @@ type UserAPI = "users" :> Get '[JSON] [User]
 type UserAPIServer = Auth '[SA.JWT, SA.BasicAuth] User :> UserAPI
 
 users :: Connection -> IO [User]
-users conn = findAll conn usersTable --[User 1 "User 1", User 2 "User 2"]
+users conn = findAll conn usersTable
 
 server :: Connection -> Server UserAPIServer
 server conn (Authenticated user) = liftIO $ users conn
@@ -44,6 +44,11 @@ authCheck conn (BasicAuthData username password) = do
     [user] -> return (Authenticated user)
     _ -> return SAS.BadPassword
 
+corsConfig :: Middleware
+corsConfig = cors $ const $ Just simpleCorsResourcePolicy {
+    corsRequestHeaders = "Authorization" : corsRequestHeaders simpleCorsResourcePolicy
+}
+
 app :: Connection -> IO Application
 app conn = do
     myKey <- generateKey
@@ -51,7 +56,7 @@ app conn = do
         authCfg = authCheck conn
         cfg = jwtCfg :. defaultCookieSettings :. authCfg :. EmptyContext
         api = Proxy :: Proxy UserAPIServer
-    pure $ serveWithContext api cfg (server conn)
+    return $ corsConfig $ serveWithContext api cfg (server conn)
 
 main :: IO ()
 main = 
@@ -60,7 +65,7 @@ main =
        conn <- connect defaultConnectInfo { connectUser = "afp", connectPassword = "pass", connectDatabase = "afp" }
 
        let port = fromMaybe 8300 $ getIntegerProperty properties "port" 
-       let settings = setPort port $ setBeforeMainLoop (putStrLn ("listening on port " ++ show port)) $ defaultSettings
+       let settings = setPort port $ setBeforeMainLoop (putStrLn ("listening on port " ++ show port)) defaultSettings
        
        let dropTables = getBooleanProperty properties "database.drop-tables"
        
