@@ -91,7 +91,8 @@ instance Show Entity.Tabs.Key where
     show A = "A"
     show ASharp = "A#"
     show B = "B"
-    show C = "C#"
+    show C = "C"
+    show CSharp = "C#"
     show D = "D"
     show DSharp = "D#"
     show E = "E"
@@ -104,46 +105,44 @@ instance ToJSON Entity.Tabs.Key where
     toJSON key = toJSON (show key)
 
 --Parsing
-makeTab :: Int -> String -> String -> Artist -> Maybe Tab
-makeTab i t a c = case run parseChordTab c of
-        Nothing      -> Nothing
-        Just con -> Just (Tab i t a con)
+makeTabContent :: String -> Maybe TabContent
+makeTabContent = run parseChordTab
 
 parseChordTab :: Parser Char TabContent
-parseChordTab = ChordTab <$> many parseChordTabLine
+parseChordTab = TabContent <$> many parseChordTabLine
 
 parseChordTabLine :: Parser Char ChordTabLine
-parseChordTabLine = parseChordLine <|> parsePlainTextLine
+parseChordTabLine = (flip ChordTabLine <$> parseChordLine <*> parsePlainTextLine) <|> (flip ChordTabLine <$> parseChordLine <*> succeed "") <|> (flip ChordTabLine <$> succeed [] <*> parsePlainTextLine)
 
-parseChordLine :: Parser Char ChordTabLine
-parseChordLine = ChordLine <$> ((\i cs _ -> makeIndexedChords i cs) <$> parseWhiteSpaces <*> many parseChordAndSpace <*> parseCrlf)
+parseChordLine :: Parser Char [IndexedChord]
+parseChordLine = (\i cs _ -> makeIndexedChords i cs) <$> parseWhiteSpaces <*> many parseChordAndSpace <*> parseCrlf
 
 makeIndexedChords :: Int -> [(Chord, Int)] -> [IndexedChord]
 makeIndexedChords _ [] = []
 makeIndexedChords i ((c, s):xs) = IndexedChord i c : makeIndexedChords (i + chordLength c + s) xs
 
 chordLength :: Chord -> Int
-chordLength (SimpleChord k m) = keyLength k + length m
-chordLength (ChordWithBass k m b) = keyLength k + length m + keyLength b
+chordLength (SimpleChord k m) = keyLength k + Prelude.length m
+chordLength (ChordWithBass k m b) = keyLength k + Prelude.length m + keyLength b
 
-keyLength :: Key -> Int
-keyLength c = if c `elem` [A, B, C, D, E, F, G] then 1 else 2
+keyLength :: Entity.Tabs.Key -> Int
+keyLength c = if c `Prelude.elem` [A, B, C, D, E, F, G] then 1 else 2
 
 parseChordAndSpace :: Parser Char (Chord, Int)
 parseChordAndSpace = (,) <$> parseChord <*> parseWhiteSpaces
 
-parsePlainTextLine :: Parser Char ChordTabLine
-parsePlainTextLine = (\t _ -> PlainTextLine t) <$> parseText <*> parseCrlf
+parsePlainTextLine :: Parser Char String
+parsePlainTextLine = const <$> parseText <*> parseCrlf
 
 parseChord :: Parser Char Chord
 parseChord = mkChord <$> parseKey <*> parseSignature <*> (((\_ k -> k) <$> token "/" <*> parseKey) <|> succeed InvalidKey)
 
-mkChord :: Key -> String -> Key -> Chord
+mkChord :: Entity.Tabs.Key -> String -> Entity.Tabs.Key -> Chord
 mkChord k s InvalidKey = SimpleChord k s
 mkChord k s b          = ChordWithBass k s b
 
 parseSignature :: Parser Char String
-parseSignature = concat <$> many (token "maj" <|> token "min" <|> token "m" <|> token "sus" <|> token "dim" <|> token "add"
+parseSignature = Prelude.concat <$> many (token "maj" <|> token "min" <|> token "m" <|> token "sus" <|> token "dim" <|> token "add"
         <|> token "2" <|> token "4" <|> token "5" <|> token "6" <|> token "7" <|> token "9" <|> token "11" <|> token "13")
 
 char :: Char -> Parser Char Char
@@ -176,7 +175,7 @@ mkKey 'G' ' ' = G
 mkKey _ _ = InvalidKey
 
 parseWhiteSpaces :: Parser Char Int
-parseWhiteSpaces = (length <$> many (char ' ')) <|> succeed 0
+parseWhiteSpaces = (Prelude.length <$> many (char ' ')) <|> succeed 0
 
 parseCrlf :: Parser Char [Char]
 parseCrlf = token "\n" <|> token "\r\n"
@@ -185,11 +184,11 @@ parseText :: Parser Char [Char]
 parseText = many (satisfy (\c -> c /= '\n' && c /= '\r'))
 
 run :: Parser a b -> [a] -> Maybe b
-run p xs | null (parse p xs) = Nothing
-         | otherwise = Just (fst (head (parse p xs)))
+run p xs | Prelude.null (parse p xs) = Nothing
+         | otherwise = Just (fst (Prelude.head (parse p xs)))
 
 
-increment :: Key -> Key
+increment :: Entity.Tabs.Key -> Entity.Tabs.Key
 increment A = ASharp
 increment ASharp = B
 increment B = C
@@ -204,7 +203,7 @@ increment G = GSharp
 increment GSharp = A
 increment InvalidKey = InvalidKey
 
-raiseKey :: Int -> Key -> Key
+raiseKey :: Int -> Entity.Tabs.Key -> Entity.Tabs.Key
 raiseKey 0 k = k
 raiseKey n k | n < 0 || n > 11 = raiseKey (n `mod` 12) k
              | otherwise       = raiseKey (n - 1) (increment k)
@@ -214,11 +213,7 @@ raiseChord n (IndexedChord i (SimpleChord k m))     = IndexedChord i (SimpleChor
 raiseChord n (IndexedChord i (ChordWithBass k m b)) = IndexedChord i (ChordWithBass (raiseKey n k) m (raiseKey n b))
 
 transposeLine :: Int -> ChordTabLine -> ChordTabLine
-transposeLine _ (PlainTextLine t) = PlainTextLine t
-transposeLine n (ChordLine cs)    = ChordLine (map (raiseChord n) cs)
+transposeLine n (ChordTabLine t cs)    = ChordTabLine t (Prelude.map (raiseChord n) cs)
 
 transposeContent :: Int -> TabContent -> TabContent
-transposeContent n (ChordTab ls) = ChordTab (map (transposeLine n) ls)
-
-transpose :: Int -> Tab -> Tab
-transpose n t@(Tab {content = c}) = t {content = transposeContent n c}
+transposeContent n (TabContent ls) = TabContent (Prelude.map (transposeLine n) ls)
