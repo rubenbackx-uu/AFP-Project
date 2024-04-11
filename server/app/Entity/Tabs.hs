@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Entity.Tabs where
 
@@ -73,6 +74,7 @@ instance ToJSON TabContent where
 
 data ChordTabLine = ChordTabLine String [IndexedChord] deriving Show
 instance ToJSON ChordTabLine where 
+    toJSON :: ChordTabLine -> Value
     toJSON (ChordTabLine text chords) = object [ "text" .= text, "chords" .= chords ]
 
 data IndexedChord = IndexedChord Int Chord deriving Show
@@ -228,6 +230,9 @@ transposeContent _ _ = error "Only chord tabs can be transposed"
 
 data TabString = TabString Entity.Tabs.Key String deriving Show 
 
+instance ToJSON TabString where
+    toJSON (TabString k s) = object [ "key" .= k, "string" .= s ]
+
 tabComponent :: Char -> Bool
 tabComponent '-' = True
 tabComponent '0' = True
@@ -252,6 +257,10 @@ parseTabString :: Parser Char TabString
 parseTabString = (\k _ s _ _ -> TabString k s)  <$> parseKey <*> char '|' <*> many (satisfy tabComponent) <*> char '|' <*> parseCrlf
 
 data TabElement = TabData [TabString] | Section String deriving Show 
+
+instance ToJSON TabElement where
+    toJSON (TabData xs) = object [ "data" .= xs ]
+    toJSON (Section s) = object [ "section" .= s ]
 
 repeatParser :: Int -> Parser a b -> Parser a [b]
 repeatParser 0 _ = succeed []
