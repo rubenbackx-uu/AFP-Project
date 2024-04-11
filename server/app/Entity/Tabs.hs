@@ -267,7 +267,10 @@ repeatParser 0 _ = succeed []
 repeatParser n p = (:) <$> p <*> repeatParser (n - 1) p
 
 parseTabElement :: Parser Char TabElement
-parseTabElement = (TabData <$> repeatParser 6 parseTabString) <|> ((\_ t _ _ -> Section t) <$> char '[' <*> parseText <*> char ']' <*> parseCrlf)
+parseTabElement = const <$> ((TabData <$> repeatParser 6 parseTabString) <|> ((\_ t _ _ -> Section t) <$> char '[' <*> parseText <*> char ']' <*> parseCrlf)) <*> many parseEmptyLine
+
+parseEmptyLine :: Parser Char ()
+parseEmptyLine = (\_ _ -> ()) <$> many (char ' ') <*> parseCrlf
 
 parseEndOfFile :: Parser Char [Char]
 parseEndOfFile = token "##EOF##"
