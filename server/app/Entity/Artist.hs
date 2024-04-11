@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Entity.Artist(Artist(..)) where
+module Entity.Artist(Artist(..), artistsTable) where
 
 import Table
 import Repository
