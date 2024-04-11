@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Entity.Tabs where
 
@@ -66,12 +67,14 @@ instance Repository Tabs where
 
 
 
-newtype TabContent = TabContent [ChordTabLine] deriving Show 
+data TabContent = ChordTabContent [ChordTabLine] | TabTabContent [TabElement] deriving Show 
 instance ToJSON TabContent where
-    toJSON (TabContent lines) = object [ "lines" .= lines ]
+    toJSON (ChordTabContent lines) = object [ "lines" .= lines ]
+    toJSON (TabTabContent elements) = object [ "elements" .= elements]
 
 data ChordTabLine = ChordTabLine String [IndexedChord] deriving Show
 instance ToJSON ChordTabLine where 
+    toJSON :: ChordTabLine -> Value
     toJSON (ChordTabLine text chords) = object [ "text" .= text, "chords" .= chords ]
 
 data IndexedChord = IndexedChord Int Chord deriving Show
@@ -105,11 +108,15 @@ instance ToJSON Entity.Tabs.Key where
     toJSON key = toJSON (show key)
 
 --Parsing
-makeTabContent :: String -> Maybe TabContent
-makeTabContent = run parseChordTab
+getType :: TabContent -> TabType
+getType (ChordTabContent _) = Chords
+getType (TabTabContent _)   = Tab
 
-parseChordTab :: Parser Char TabContent
-parseChordTab = TabContent <$> many parseChordTabLine
+makeTabContent :: String -> Maybe TabContent
+makeTabContent s = run parseTab (s ++ "\n##EOF##") >>= validate
+
+parseTab :: Parser Char TabContent
+parseTab = ((\x _ -> TabTabContent x) <$> many parseTabElement <*> parseEndOfFile) <|> ((\x _ ->ChordTabContent x) <$> many parseChordTabLine <*> parseEndOfFile)
 
 parseChordTabLine :: Parser Char ChordTabLine
 parseChordTabLine = (flip ChordTabLine <$> parseChordLine <*> parsePlainTextLine) <|> (flip ChordTabLine <$> parseChordLine <*> succeed "") <|> (flip ChordTabLine <$> succeed [] <*> parsePlainTextLine)
@@ -216,4 +223,83 @@ transposeLine :: Int -> ChordTabLine -> ChordTabLine
 transposeLine n (ChordTabLine t cs)    = ChordTabLine t (Prelude.map (raiseChord n) cs)
 
 transposeContent :: Int -> TabContent -> TabContent
-transposeContent n (TabContent ls) = TabContent (Prelude.map (transposeLine n) ls)
+transposeContent n (ChordTabContent ls) = ChordTabContent (Prelude.map (transposeLine n) ls)
+transposeContent _ _ = error "Only chord tabs can be transposed"
+
+-- Parsing Tab type
+
+data TabString = TabString Entity.Tabs.Key String deriving Show 
+
+instance ToJSON TabString where
+    toJSON (TabString k s) = object [ "key" .= k, "string" .= s ]
+
+tabComponent :: Char -> Bool
+tabComponent '-' = True
+tabComponent '0' = True
+tabComponent '1' = True
+tabComponent '2' = True
+tabComponent '3' = True
+tabComponent '4' = True
+tabComponent '5' = True
+tabComponent '6' = True
+tabComponent '7' = True
+tabComponent '8' = True
+tabComponent '9' = True
+tabComponent 'h' = True
+tabComponent 'p' = True
+tabComponent 'b' = True
+tabComponent '\\' = True
+tabComponent '/' = True
+tabComponent '~' = True
+tabComponent _ = False
+
+parseTabString :: Parser Char TabString
+parseTabString = (\k _ s _ _ -> TabString k s)  <$> parseKey <*> char '|' <*> many (satisfy tabComponent) <*> char '|' <*> parseCrlf
+
+data TabElement = TabData [TabString] | Section String deriving Show 
+
+instance ToJSON TabElement where
+    toJSON (TabData xs) = object [ "data" .= xs ]
+    toJSON (Section s) = object [ "section" .= s ]
+
+repeatParser :: Int -> Parser a b -> Parser a [b]
+repeatParser 0 _ = succeed []
+repeatParser n p = (:) <$> p <*> repeatParser (n - 1) p
+
+parseTabElement :: Parser Char TabElement
+parseTabElement = (TabData <$> repeatParser 6 parseTabString) <|> ((\_ t _ _ -> Section t) <$> char '[' <*> parseText <*> char ']' <*> parseCrlf)
+
+parseEndOfFile :: Parser Char [Char]
+parseEndOfFile = token "##EOF##"
+
+uniformLength :: TabElement -> Bool
+uniformLength (TabData xs) = sameLengthStrings xs
+uniformLength _ = True
+
+sameLengthStrings :: [TabString] -> Bool
+sameLengthStrings [] = True
+sameLengthStrings [_] = True
+sameLengthStrings ((TabString _ s1) : x@(TabString _ s2) : xs) = Prelude.length s1 == Prelude.length s2 && sameLengthStrings (x:xs)
+
+tabSectionKeys :: TabElement -> [Entity.Tabs.Key]
+tabSectionKeys (TabData xs) = Prelude.map getStringKey xs
+tabSectionKeys _ = []
+
+validContent :: TabContent -> Bool
+validContent (ChordTabContent _) = True
+validContent (TabTabContent xs) = sameTuning (Prelude.filter hasTuning xs) && Prelude.all uniformLength xs
+
+hasTuning :: TabElement -> Bool
+hasTuning (Section _) = False
+hasTuning _           = True
+
+sameTuning :: [TabElement] -> Bool
+sameTuning [] = True
+sameTuning [_] = True
+sameTuning (x1 : x2 : xs) = tabSectionKeys x1 == tabSectionKeys x2 && sameTuning (x1 : xs)
+
+getStringKey :: TabString -> Entity.Tabs.Key
+getStringKey (TabString k _) = k
+
+validate :: TabContent -> Maybe TabContent
+validate content = if validContent content then Just content else Nothing
