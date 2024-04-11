@@ -26,6 +26,7 @@ import GHC.Generics
 import Servant.Auth (Auth)
 import Servant.Auth.Server as SAS
 import Servant.Auth as SA
+import Entity.Artist (artistsTable)
 
 type UserAPI = "users" :> Get '[JSON] [User]
 type UserAPIServer = Auth '[SA.JWT, SA.BasicAuth] User :> UserAPI

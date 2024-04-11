@@ -43,7 +43,7 @@ author:
 -- An email address to which users can send suggestions, bug reports, and patches.
 maintainer:         
     r.w.backx@students.uu.nl,
-    add.your.email.here@students.uu.nl
+    j.j.terhaar@students.uu.nl
 
 -- A copyright notice.
 -- copyright:
@@ -93,6 +93,7 @@ executable server
         , bytestring
         , mysql
         , parsec
+        , uu-tc
 
 
     -- Directories containing source files.
