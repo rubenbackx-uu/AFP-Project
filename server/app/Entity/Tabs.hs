@@ -148,13 +148,13 @@ parseSignature = Prelude.concat <$> many (token "maj" <|> token "min" <|> token 
 char :: Char -> Parser Char Char
 char c = satisfy (==c)
 
-parseKey :: Parser Char Key
+parseKey :: Parser Char Entity.Tabs.Key
 parseKey = mkKey <$> satisfy isKey <*> (char '#' <|> char 'b' <|> succeed ' ')
 
 isKey :: Char -> Bool
 isKey c = c >= 'A' && c <= 'G'
 
-mkKey:: Char -> Char -> Key
+mkKey:: Char -> Char -> Entity.Tabs.Key
 mkKey 'A' '#' = ASharp
 mkKey 'C' '#' = CSharp
 mkKey 'D' '#' = DSharp
