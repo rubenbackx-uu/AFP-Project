@@ -278,7 +278,7 @@ tabSectionKeys _ = []
 
 validContent :: TabContent -> Bool
 validContent (ChordTabContent _) = True
-validContent (TabTabContent xs) = sameTuning (filter hasTuning xs) && Prelude.all uniformLength xs
+validContent (TabTabContent xs) = sameTuning (Prelude.filter hasTuning xs) && Prelude.all uniformLength xs
 
 hasTuning :: TabElement -> Bool
 hasTuning (Section _) = False
