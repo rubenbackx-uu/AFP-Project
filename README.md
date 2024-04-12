@@ -6,7 +6,7 @@ To run this project you need to have [cabal](https://cabal.readthedocs.io/en/sta
 
 For Fedroa you can for example follow the steps described [here](https://docs.fedoraproject.org/en-US/quick-docs/installing-mysql-mariadb/#_install_from_fedora_main_repo).
 
-Before you run the server create a database named `afp`, and a user `afp` with password `pass` who is able to read and write on this database.
+Before you run the server, create a database named `afp` and a user `afp` with password `pass` who is able to read and write on this database.
 
 After making sure that the datbase is setup and reachable, you can start a development enviroment by opening two terminals, one for the frontend and one for the backend. Then run:
 
