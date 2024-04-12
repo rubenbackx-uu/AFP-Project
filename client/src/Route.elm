@@ -8,6 +8,7 @@ import Url.Parser exposing (Parser, (</>), int, map, oneOf, s, string, top, pars
 
 type Route
     = Home
+    | Login
     | Profile
     | Tab Int
 
@@ -15,6 +16,7 @@ routeParser : Parser (Route -> a) a
 routeParser =
     oneOf 
         [ map Home top
+        , map Login (s "login")
         , map Profile (s "profile")
         , map Tab (s "tab" </> int)
         ]
@@ -35,5 +37,6 @@ routeToPieces : Route -> List String
 routeToPieces route = 
     case route of
         Home -> []
+        Login -> ["login"]
         Profile -> ["profile"]
         Tab id -> ["tab", String.fromInt id]

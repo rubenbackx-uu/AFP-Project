@@ -3,12 +3,18 @@ module Main exposing (main)
 import Browser
 import Browser.Navigation as Nav
 import Debug exposing (..)
-import Html exposing (..)
-import Html.Attributes exposing (..)
+import Html
+import Html.Styled exposing (..)
+import Html.Styled.Attributes exposing (href)
 import Route exposing (Route)
 import Url
+import Session exposing (..)
 
 import Page.Home as Home
+import Page.Profile as Profile
+import Page.Error as Error
+import Page.Tab as Tab
+import Page.Login as Login
 
 -- MAIN
 
@@ -27,19 +33,32 @@ main = Browser.application
 
 type Page = OnPage Route | ErrorPage
 
-type alias Model =
-    { key : Nav.Key
-    , page : Page
-    }
+type Model 
+    = Tab Tab.Model
+    | Login Login.Model
+    | Error Error.Model
+    | Profile Profile.Model
+    | Home Home.Model
 
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
-init _ url key = changeRoute (Route.fromUrl url) key
+init _ url key = changeRoute (Route.fromUrl url) (Error { session = { key = key, auth = Nothing } })
 
-changeRoute : Maybe Route -> Nav.Key -> ( Model, Cmd Msg )
-changeRoute mbRoute key =
+changeRoute : Maybe Route -> Model -> ( Model, Cmd Msg )
+changeRoute mbRoute model =
     case mbRoute of
-        Nothing -> ( { key = key, page = ErrorPage }, Cmd.none )
-        Just route -> ( { key = key, page = OnPage route }, Cmd.none )
+        Just (Route.Tab id) -> Tab.init id (toSession model) |> updateWith Tab TabMsg
+        Just Route.Login -> Login.init (toSession model) |> updateWith Login LoginMsg
+        Just Route.Home -> Home.init (toSession model) |> updateWith Home HomeMsg
+        Just Route.Profile -> ({ session = toSession model }, Cmd.none) |> updateWith Profile ProfileMsg
+        Nothing -> ({ session = toSession model }, Cmd.none) |> updateWith Error ErrorMsg
+
+toSession : Model -> Session
+toSession model = case model of
+    Tab tab -> Tab.toSession tab
+    Login login -> Login.toSession login
+    Home home -> home.session
+    Profile profile -> profile.session
+    Error error -> error.session
 
 
 -- UPDATE
@@ -48,21 +67,31 @@ type Msg
     = LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
     | HomeMsg Home.Msg
+    | ProfileMsg Profile.Msg
+    | ErrorMsg Error.Msg
+    | TabMsg Tab.Msg
+    | LoginMsg Login.Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case msg of
-        LinkClicked urlRequest ->
+    case (msg, model) of
+        (LinkClicked urlRequest, _) ->
             case urlRequest of
                 Browser.Internal url ->
-                    ( model, Nav.pushUrl model.key (Url.toString url) )
+                    ( model, Nav.pushUrl (toSession model).key (Url.toString url) )
                 Browser.External href ->
                     ( model, Nav.load href )
-        UrlChanged url -> changeRoute (Route.fromUrl url) model.key
-        HomeMsg m -> Home.update m () |> updateWith (\_ -> model) HomeMsg
+        (UrlChanged url, _) -> changeRoute (Route.fromUrl url) model
+        (HomeMsg m, Home home) -> Home.update m home |> updateWith Home HomeMsg
+        (LoginMsg m, Login login) -> Login.update m login |> updateWith Login LoginMsg
+        (ProfileMsg m, Profile profile) -> Profile.update m profile |> updateWith Profile ProfileMsg
+        (ErrorMsg m, Error error) -> Error.update m error |> updateWith Error ErrorMsg
+        (TabMsg m, Tab tab) -> Tab.update m tab |> updateWith Tab TabMsg
+        (_, _) -> (model, Cmd.none)
 
 updateWith : (model -> Model) -> (msg -> Msg) -> (model, Cmd msg) -> (Model, Cmd Msg)
 updateWith toModel toMsg (subModel, subCmd) = (toModel subModel, Cmd.map toMsg subCmd)
+
 
 -- SUBSCRIPTIONS
 
@@ -78,44 +107,9 @@ view model =
     let 
         viewPage page toMsg = let { title, body } = page in { title = title, body = List.map (Html.map toMsg) body } 
     in
-    case model.page of
-        ErrorPage -> viewError
-        OnPage Route.Home -> viewPage (Home.view ()) HomeMsg
-        OnPage Route.Profile -> viewProfile
-        OnPage (Route.Tab id) -> viewTab id
-
-viewProfile : Browser.Document Msg
-viewProfile =
-    { title = "Profile"
-    , body = 
-        [ h1 [] [ text "Profile" ]
-        , links 
-        ]
-    }
-
-viewTab : Int -> Browser.Document Msg
-viewTab id =
-    { title = "Tab " ++ (String.fromInt id) 
-    , body = 
-        [ h1 [] [ text ("Tab " ++ (String.fromInt id)) ] 
-        , links
-        ]
-    }
-
-viewError : Browser.Document Msg
-viewError = 
-    { title = "Error" 
-    , body = 
-        [ h1 [] [ text "Error" ] 
-        , links
-        ]
-    }
-
-links : Html Msg
-links = ul []
-    [ li [] [ a [ href "/" ] [ text "Home" ] ]
-    , li [] [ a [ href "/profile" ] [ text "Profile" ] ]
-    , li [] [ a [ href "/tab/1" ] [ text "Tab 1" ] ]
-    , li [] [ a [ href "/tab/2" ] [ text "Tab 2" ] ]
-    , li [] [ a [ href "/error" ] [ text "Error" ] ]
-    ]
+    case model of
+        Tab tab -> viewPage (Tab.view tab) TabMsg
+        Login login -> viewPage (Login.view login) LoginMsg
+        Error error -> viewPage (Error.view error) ErrorMsg
+        Profile profile -> viewPage (Profile.view profile) ProfileMsg
+        Home home -> viewPage (Home.view home) HomeMsg

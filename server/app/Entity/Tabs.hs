@@ -9,7 +9,7 @@ import Repository
 import Control.Monad
 import Data.Aeson hiding (Result)
 import Data.String
-import Data.ByteString
+import Data.ByteString hiding (length, head, null, concat, elem)
 import GHC.Generics
 import Database.MySQL.Base.Types
 import Database.MySQL.Simple 
@@ -17,6 +17,7 @@ import Database.MySQL.Simple.QueryResults
 import Database.MySQL.Simple.Param 
 import Database.MySQL.Simple.Result 
 import ParseLib.Abstract
+import Entity.Artist
 
 data TabType = Chords | Tab
     deriving (Show, Eq, Generic)
@@ -34,35 +35,51 @@ instance Result TabType where
         "Tab" -> Tab
         s -> error $ "Invalid tab type: " ++ s
 
-data Tabs = Tabs { tabId :: Int, tabTitle :: String, tabArtistId :: Int, tabType :: TabType, tabContent :: String }
+data Tabs = Tabs { tabId :: Int, tabTitle :: String, tabArtistId :: Int, tabType :: TabType, tabContent :: String, tabRating :: Int }
     deriving (Show, Eq, Generic)
 
 data TabArtistDTO = TabArtistDTO { tabArtistDtoId :: Int, tabArtistDtoName :: String }
-data TabDTO = TabDTO { tabDtoId :: Int, tabDtoTitle :: String, tabDtoArtist :: TabArtistDTO, tabDtoType :: TabType, tabDtoContent :: TabContent }
+    deriving Show
+data TabSummaryDTO = TabSummaryDTO { tabSummaryId :: Int, tabSummaryTitle :: String, tabSummaryArtist :: TabArtistDTO, tabSummaryType :: TabType, tabSummaryRating :: Int }
+    deriving Show
+data TabDTO = TabDTO { tabDtoId :: Int, tabDtoTitle :: String, tabDtoArtist :: TabArtistDTO, tabDtoType :: TabType, tabDtoContent :: TabContent, tabDtoRating :: Int }
+    deriving Show
+
+toTabSummaryDTO :: Tabs -> Artist -> TabSummaryDTO
+toTabSummaryDTO (Tabs id title _ ty _ rating) (Artist artistId artistName) = TabSummaryDTO id title (TabArtistDTO artistId artistName) ty rating
+
+toTabDTO :: Tabs -> Artist -> TabDTO
+toTabDTO (Tabs id title _ ty content rating) (Artist artistId artistName) = 
+    case makeTabContent content of
+        Nothing -> TabDTO id title (TabArtistDTO artistId artistName) ty (ChordTabContent []) rating
+        Just parsedContent -> TabDTO id title (TabArtistDTO artistId artistName) ty parsedContent rating
 
 instance ToJSON TabArtistDTO where 
     toJSON dto = object [ "id" .= tabArtistDtoId dto, "name" .= tabArtistDtoName dto ]
+instance ToJSON TabSummaryDTO where 
+    toJSON dto = object [ "id" .= tabSummaryId dto, "title" .= tabSummaryTitle dto, "artist" .= tabSummaryArtist dto, "type" .= tabSummaryType dto, "rating" .= tabSummaryRating dto ]
 instance ToJSON TabDTO where 
-    toJSON dto = object [ "id" .= tabDtoId dto, "title" .= tabDtoTitle dto, "artist" .= tabDtoArtist dto, "type" .= tabDtoType dto, "content" .= tabDtoContent dto ]
+    toJSON dto = object [ "id" .= tabDtoId dto, "title" .= tabDtoTitle dto, "artist" .= tabDtoArtist dto, "type" .= tabDtoType dto, "content" .= tabDtoContent dto, "rating" .= tabDtoRating dto ]
 
 instance QueryResults Tabs where
-    convertResults [f0, f1, f2, f3, f4] [v0, v1, v2, v3, v4] = Tabs id title artistId tabType content
+    convertResults [f0, f1, f2, f3, f4, f5] [v0, v1, v2, v3, v4, v5] = Tabs id title artistId tabType content rating
         where id = convert f0 v0
               title = convert f1 v1
               artistId = convert f2 v2
               tabType = convert f3 v3
               content = convert f4 v4
-    convertResults fs vs = convertError fs vs 2 
+              rating = convert f5 v5
+    convertResults fs vs = convertError fs vs 6
 
 tabsTable :: Table Tabs
 tabsTable = Table {
     tableName = "tabs",
     idCol = "id",
-    definition = "( id BIGINT PRIMARY KEY NOT NULL AUTO_INCREMENT, title VARCHAR(255) NOT NULL, artist_id BIGINT NOT NULL, type ENUM('Chords', 'Tabs') NOT NULL, tab_content TEXT NOT NULL, CONSTRAINT `fk_tab_art` FOREIGN KEY (artist_id) REFERENCES artists (id) ON DELETE CASCADE ON UPDATE RESTRICT )"
+    definition = "( id BIGINT PRIMARY KEY NOT NULL AUTO_INCREMENT, title VARCHAR(255) NOT NULL, artist_id BIGINT NOT NULL, type ENUM('Chords', 'Tabs') NOT NULL, tab_content TEXT NOT NULL, rating INT NOT NULL, CONSTRAINT `fk_tab_art` FOREIGN KEY (artist_id) REFERENCES artists (id) ON DELETE CASCADE ON UPDATE RESTRICT )"
 }
 
 instance Repository Tabs where
-    save conn table tab = void $ execute conn (fromString ("INSERT INTO " ++ tableName table ++ " (title, artist_id, type, tab_content) VALUES (?)")) (tabTitle tab, tabArtistId tab, tabType tab, tabContent tab)
+    save conn table tab = void $ execute conn (fromString ("INSERT INTO " ++ tableName table ++ " (title, artist_id, type, tab_content, rating) VALUES (?, ?, ?, ?, ?)")) (tabTitle tab, tabArtistId tab, tabType tab, tabContent tab, tabRating tab)
     delete conn table tab = deleteById conn table (tabId tab)
 
 
@@ -79,7 +96,7 @@ instance ToJSON ChordTabLine where
 
 data IndexedChord = IndexedChord Int Chord deriving Show
 instance ToJSON IndexedChord where 
-    toJSON (IndexedChord pos chord) = object [ "position" .= pos, "chord" .= chord ]
+    toJSON (IndexedChord pos chord) = object [ "position" .= pos, "symbol" .= chord ]
 
 data Chord = SimpleChord Entity.Tabs.Key Mode | ChordWithBass Entity.Tabs.Key Mode Entity.Tabs.Key  -- for instance, in a F#m7 chord F# is the Key, and m7 the Mode
 instance Show Chord where

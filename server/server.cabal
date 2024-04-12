@@ -92,7 +92,6 @@ executable server
         , text
         , bytestring
         , mysql
-        , parsec
         , uu-tc
 
 
